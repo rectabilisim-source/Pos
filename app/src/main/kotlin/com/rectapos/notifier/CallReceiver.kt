@@ -46,17 +46,14 @@ class CallReceiver : BroadcastReceiver() {
     }
 
     private fun resolvePhoneNumber(context: Context, intent: Intent): String {
-        // Android 8.1 (API 27) ve altı: numara doğrudan intent içinde
+        // READ_CALL_LOG izni varsa EXTRA_INCOMING_NUMBER tüm Android sürümlerinde çalışır
         @Suppress("DEPRECATION")
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-            val num = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
-            if (!num.isNullOrBlank()) return num
-        }
+        val directNum = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+        if (!directNum.isNullOrBlank()) return directNum
 
-        // Android 9+ : CallLog'dan son gelen çağrı numarasını al
-        // Çağrı ringlerne başladığında CallLog kaydı gecikebilir, retry ile bekleriz
+        // Fallback: CallLog — çağrı kaydının oluşması için bekle + retry
         repeat(6) { attempt ->
-            Thread.sleep(if (attempt == 0) 500L else 1000L)
+            Thread.sleep(if (attempt == 0) 800L else 1500L)
             val num = readLatestIncomingFromLog(context)
             if (num != "bilinmeyen") return num
         }
@@ -66,7 +63,8 @@ class CallReceiver : BroadcastReceiver() {
     private fun readLatestIncomingFromLog(context: Context): String {
         return try {
             val projection = arrayOf(CallLog.Calls.NUMBER, CallLog.Calls.TYPE)
-            val selection  = "${CallLog.Calls.TYPE} IN (${CallLog.Calls.INCOMING_TYPE}, ${CallLog.Calls.MISSED_TYPE})"
+            // INCOMING + MISSED + REJECTED — ringing sırasında tüm olası türler
+            val selection  = "${CallLog.Calls.TYPE} IN (${CallLog.Calls.INCOMING_TYPE}, ${CallLog.Calls.MISSED_TYPE}, ${CallLog.Calls.REJECTED_TYPE})"
             val sortOrder  = "${CallLog.Calls.DATE} DESC LIMIT 1"
 
             context.contentResolver
