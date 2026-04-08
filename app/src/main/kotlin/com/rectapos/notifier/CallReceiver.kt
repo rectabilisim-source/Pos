@@ -54,9 +54,13 @@ class CallReceiver : BroadcastReceiver() {
         }
 
         // Android 9+ : CallLog'dan son gelen çağrı numarasını al
-        // Çağrı başladığında CallLog kaydı hemen oluşur (MISSED olarak, sonra güncellenir)
-        Thread.sleep(500) // kaydın oluşması için kısa bekleme
-        return readLatestIncomingFromLog(context)
+        // Çağrı ringlerne başladığında CallLog kaydı gecikebilir, retry ile bekleriz
+        repeat(6) { attempt ->
+            Thread.sleep(if (attempt == 0) 500L else 1000L)
+            val num = readLatestIncomingFromLog(context)
+            if (num != "bilinmeyen") return num
+        }
+        return "bilinmeyen"
     }
 
     private fun readLatestIncomingFromLog(context: Context): String {
